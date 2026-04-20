@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="GHN Barcode Pick & Pack Checker - Công cụ scan barcode kiểm tra đơn hàng cho NVPTTT" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <title>GHN Pick & Pack Checker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===================== SETUP SCREEN ===================== -->
+  <div id="setupScreen" class="screen active">
+    <div class="setup-hero">
+      <div class="logo-badge"><span class="dot"></span> GHN Internal Tool</div>
+      <h1 class="setup-title">Pick &amp; Pack<br/>Checker</h1>
+      <p class="setup-subtitle">Scan QR kiện — kiểm tra đơn tức thì</p>
+    </div>
+
+    <div class="setup-body">
+      <!-- Saved list notice -->
+      <div id="savedNotice" class="saved-notice" style="display:none">
+        <span class="saved-notice-icon">💾</span>
+        <div>
+          <div class="saved-notice-title">Có danh sách đã lưu</div>
+          <div class="saved-notice-sub" id="savedNoticeText"></div>
+        </div>
+        <button class="btn-icon" id="clearSavedBtn" title="Xoá">✕</button>
+      </div>
+
+      <div class="input-card">
+        <div class="input-label">
+          Danh sách mã đơn
+          <span class="code-count-badge" id="codeCountBadge">0 mã</span>
+        </div>
+        <textarea
+          id="codeListInput"
+          placeholder="Paste hoặc nhập mã đơn vào đây&#10;Mỗi mã một dòng&#10;&#10;Ví dụ:&#10;GHNAABC123&#10;GHN20240001&#10;..."
+          spellcheck="false"
+        ></textarea>
+        <div class="hint-text">
+          ℹ️ Hỗ trợ ≥ 500 mã. Tự động trim, uppercase, loại trùng.
+        </div>
+
+        <div class="preview-list" id="previewList"></div>
+      </div>
+
+      <button class="btn btn-primary" id="startScanBtn" disabled>
+        <span>📷</span> Bắt đầu scan
+      </button>
+
+      <div style="height: 24px;"></div>
+    </div>
+  </div>
+
+  <!-- ===================== SCAN SCREEN ===================== -->
+  <div id="scanScreen" class="screen">
+    <!-- Header -->
+    <div class="scan-header">
+      <span class="scan-header-title">📦 Đang scan…</span>
+      <span class="counter-badge" id="counterBadge">0 / 0</span>
+    </div>
+
+    <!-- Video -->
+    <div class="scan-video-container">
+      <video id="videoEl" autoplay muted playsinline></video>
+
+      <!-- Guide frame -->
+      <div class="scan-guide">
+        <div class="scan-guide-corners"></div>
+        <div class="scan-line"></div>
+      </div>
+
+      <!-- Result overlay -->
+      <div class="result-overlay" id="resultOverlay">
+        <span class="result-icon" id="resultIcon"></span>
+        <span class="result-status" id="resultStatus"></span>
+        <span class="result-code" id="resultCode"></span>
+      </div>
+    </div>
+
+    <!-- Camera error fallback -->
+    <div class="camera-error" id="cameraError">
+      <div class="camera-error-icon">📵</div>
+      <h2>Không truy cập được camera</h2>
+      <p>Vui lòng cấp quyền camera cho trang web này trong cài đặt trình duyệt, sau đó thử lại.</p>
+      <button class="btn btn-primary" id="retryCamera">🔄 Thử lại</button>
+    </div>
+
+    <!-- Bottom bar -->
+    <div class="scan-bottom">
+      <button class="btn btn-secondary btn-sm" id="toggleFlashBtn" style="display:none">🔦</button>
+      <button class="btn btn-secondary btn-sm flex-1" id="goToReviewBtn">📋 Review</button>
+      <button class="btn btn-secondary btn-sm" id="muteBtn" title="Tắt âm">🔔</button>
+      <button class="btn btn-danger btn-sm" id="newBatchFromScanBtn">🗑 Batch mới</button>
+    </div>
+  </div>
+
+  <!-- ===================== REVIEW SCREEN ===================== -->
+  <div id="reviewScreen" class="screen">
+    <div class="review-header">
+      <button class="review-header-back" id="backToScanBtn">‹</button>
+      <span class="review-header-title">Kết quả batch</span>
+      <button class="btn btn-danger btn-sm" id="newBatchFromReviewBtn">Batch mới</button>
+    </div>
+
+    <div class="review-stats">
+      <div class="stat-card scanned">
+        <div class="stat-value" id="statScanned">0</div>
+        <div class="stat-label">Đã scan</div>
+      </div>
+      <div class="stat-card remaining">
+        <div class="stat-value" id="statRemaining">0</div>
+        <div class="stat-label">Còn lại</div>
+      </div>
+    </div>
+
+    <div class="progress-container">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-label">
+        <span id="progressLabel">0%</span>
+        <span id="progressTotal">0 / 0 đơn</span>
+      </div>
+    </div>
+
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-filter="all">Tất cả</button>
+      <button class="filter-tab" data-filter="scanned">✅ Đã scan</button>
+      <button class="filter-tab" data-filter="pending">⏳ Chưa scan</button>
+    </div>
+
+    <div class="review-list" id="reviewList"></div>
+    <div style="height:24px"></div>
+  </div>
+
+  <!-- ===================== CONFIRM DIALOG ===================== -->
+  <div class="dialog-backdrop" id="confirmDialogBackdrop">
+    <div class="dialog-box">
+      <div class="dialog-icon">⚠️</div>
+      <h3 class="dialog-title">Bắt đầu batch mới?</h3>
+      <p class="dialog-body">Toàn bộ danh sách và tiến độ scan hiện tại sẽ bị xoá. Hành động này không thể hoàn tác.</p>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary btn-sm flex-1" id="confirmCancelBtn">Huỷ</button>
+        <button class="btn btn-danger btn-sm flex-1" id="confirmOkBtn">Xoá &amp; bắt đầu lại</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TOAST ===================== -->
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
