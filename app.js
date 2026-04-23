@@ -279,7 +279,13 @@ clearSavedBtn.addEventListener('click', () => {
    CAMERA / SCANNER
 ══════════════════════════════════════════════════════ */
 
-const codeReader = new BrowserMultiFormatReader();
+const hints = new Map();
+hints.set(DecodeHintType.TRY_HARDER, true);
+hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.QR_CODE,
+  BarcodeFormat.CODE_128
+]);
+const codeReader = new BrowserMultiFormatReader(hints);
 
 // Offscreen canvas for center-crop ROI
 const roiCanvas = document.createElement('canvas');
@@ -293,8 +299,8 @@ async function startCamera() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1280, max: 1280 },
-        height: { ideal: 720, max: 720 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
       }
     });
     videoEl.srcObject = stream;
@@ -316,15 +322,22 @@ async function startCamera() {
       const now = Date.now();
       if (now - lastScanTime >= 0 && videoEl.readyState >= 2) {
         lastScanTime = now;
-        // Crop center 60% of the video frame into the ROI canvas
+        // Draw full video frame (downscaled if needed) instead of cropping
+        // to prevent cutting off barcodes on tall mobile screens
         const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
-        const sw = Math.floor(vw * 0.6), sh = Math.floor(vh * 0.6);
+        let scale = 1;
+        const maxDim = 800;
+        if (vw > maxDim || vh > maxDim) {
+          scale = maxDim / Math.max(vw, vh);
+        }
+        const sw = Math.floor(vw * scale);
+        const sh = Math.floor(vh * scale);
+
         if (roiCanvas.width !== sw || roiCanvas.height !== sh) {
           roiCanvas.width = sw;
           roiCanvas.height = sh;
         }
-        roiCtx.drawImage(videoEl, (vw - sw) / 2, (vh - sh) / 2, sw, sh,
-          0, 0, sw, sh);
+        roiCtx.drawImage(videoEl, 0, 0, vw, vh, 0, 0, sw, sh);
         try {
           const t0 = performance.now();
           const result = await codeReader.decodeFromCanvas(roiCanvas);
