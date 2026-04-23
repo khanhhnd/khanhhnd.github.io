@@ -283,8 +283,6 @@ const codeReader = new BrowserMultiFormatReader();
 
 // Offscreen canvas for center-crop ROI
 const roiCanvas = document.createElement('canvas');
-roiCanvas.width = 480;
-roiCanvas.height = 360;
 const roiCtx = roiCanvas.getContext('2d');
 
 async function startCamera() {
@@ -320,9 +318,13 @@ async function startCamera() {
         lastScanTime = now;
         // Crop center 60% of the video frame into the ROI canvas
         const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
-        const sw = vw * 0.6, sh = vh * 0.6;
+        const sw = Math.floor(vw * 0.6), sh = Math.floor(vh * 0.6);
+        if (roiCanvas.width !== sw || roiCanvas.height !== sh) {
+          roiCanvas.width = sw;
+          roiCanvas.height = sh;
+        }
         roiCtx.drawImage(videoEl, (vw - sw) / 2, (vh - sh) / 2, sw, sh,
-          0, 0, roiCanvas.width, roiCanvas.height);
+          0, 0, sw, sh);
         try {
           const t0 = performance.now();
           const result = await codeReader.decodeFromCanvas(roiCanvas);
