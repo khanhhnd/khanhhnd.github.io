@@ -89,7 +89,7 @@ const toast = $('toast');
 function playTone(type) {
   if (state.isMuted) return;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioCtx();
 
     const makeBeep = (freq, waveType, startAt, duration, volume = 0.35) => {
       const osc = ctx.createOscillator();
@@ -322,6 +322,18 @@ async function startCamera() {
     videoEl.srcObject = stream;
     await videoEl.play();
 
+    let running = true;
+
+    // Assign scanControls immediately so stopCamera() can always release the
+    // stream — even if an exception is thrown in the torch/RAF setup below.
+    scanControls = {
+      stop() {
+        running = false;
+        stream.getTracks().forEach(t => t.stop());
+        videoEl.srcObject = null;
+      }
+    };
+
     // Try torch
     const track = stream.getVideoTracks()[0];
     if (track) {
@@ -330,7 +342,6 @@ async function startCamera() {
       toggleFlashBtn.style.display = torchSupported ? '' : 'none';
     }
 
-    let running = true;
     let lastScanTime = 0;
 
     const scanLoop = async () => {
@@ -365,15 +376,9 @@ async function startCamera() {
       requestAnimationFrame(scanLoop);
     };
     requestAnimationFrame(scanLoop);
-
-    scanControls = {
-      stop() {
-        running = false;
-        stream.getTracks().forEach(t => t.stop());
-        videoEl.srcObject = null;
-      }
-    };
   } catch (err) {
+    // Release any stream that was acquired before the error occurred.
+    stopCamera();
     console.error('Camera error:', err);
     videoEl.style.display = 'none';
     cameraError.classList.add('show');
@@ -387,6 +392,7 @@ function stopCamera() {
     try { scanControls.stop(); } catch { }
     scanControls = null;
   }
+  clearTimeout(completionToastTimer);
   torchOn = false;
   toggleFlashBtn.textContent = '🔦';
 }
@@ -428,7 +434,10 @@ function handleScan(code) {
 
     // Check completion
     if (state.scanned.length === state.codes.length) {
-      setTimeout(() => showToast('🎉 Hoàn tất 100%! Tất cả đơn đã được scan.', 5000), 400);
+      clearTimeout(completionToastTimer);
+      completionToastTimer = setTimeout(() => {
+        if (state.currentScreen === 'scan') showToast('🎉 Hoàn tất 100%! Tất cả đơn đã được scan.', 5000);
+      }, 400);
     }
   }
 
@@ -537,7 +546,9 @@ function copyToClipboard(text, btn) {
       btn.classList.add('copied');
       const original = btn.innerHTML;
       btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-      setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = original; }, 1500);
+      setTimeout(() => {
+        if (document.contains(btn)) { btn.classList.remove('copied'); btn.innerHTML = original; }
+      }, 1500);
     }
   });
 }
