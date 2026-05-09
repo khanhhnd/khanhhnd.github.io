@@ -23,10 +23,19 @@ let state = {
 let scanControls = null;   // returned by BrowserMultiFormatReader
 let debounceTimer = null;   // debounce between scans
 let resultTimer = null;   // auto-hide result overlay
+let completionToastTimer = null;
 let isCoolingDown = false;  // 1.5s cooldown flag
 let torchSupported = false;
 let torchOn = false;
 let currentFilter = 'all';
+
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx || audioCtx.state === 'closed') {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
 
 /* ══════════════════════════════════════════════════════
    DOM REFS
@@ -137,6 +146,7 @@ function saveToLS() {
     codes: state.codes,
     scanned: state.scanned,
     theme: state.theme,
+    currentScreen: state.currentScreen,
   }));
 }
 function clearLS() {
@@ -201,6 +211,12 @@ function initSetup() {
       // Pre-fill textarea
       codeListInput.value = saved.codes.join('\n');
       updateCodePreview();
+
+      // Auto-resume scan session if user was scanning before leaving
+      if (saved.currentScreen === 'scan') {
+        showScreen('scan');
+        return;
+      }
     }
   }
 }
@@ -574,6 +590,22 @@ confirmOkBtn.addEventListener('click', () => {
 /* Close dialog on backdrop click */
 confirmDialog.addEventListener('click', e => {
   if (e.target === confirmDialog) confirmDialog.classList.remove('show');
+});
+
+/* ══════════════════════════════════════════════════════
+   PAGE VISIBILITY — restart camera when user returns
+══════════════════════════════════════════════════════ */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.currentScreen === 'scan') {
+    // Camera stream is killed by the browser when the tab/app is backgrounded;
+    // restart it so the user can continue scanning without a manual retry.
+    if (!scanControls) {
+      startCamera();
+    }
+  } else if (document.visibilityState === 'hidden' && state.currentScreen === 'scan') {
+    // Release the camera track so other apps can use it while backgrounded.
+    stopCamera();
+  }
 });
 
 /* ══════════════════════════════════════════════════════
